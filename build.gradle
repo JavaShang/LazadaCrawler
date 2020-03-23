@@ -1,0 +1,42 @@
+plugins {
+    id 'org.springframework.boot' version '2.2.5.RELEASE'
+    id 'io.spring.dependency-management' version '1.0.9.RELEASE'
+    id 'java'
+}
+
+group = 'com.hj'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '1.8'
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation('org.springframework.boot:spring-boot-starter-test') {
+        exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
+    }
+
+    implementation 'org.springframework.boot:spring-boot-starter'
+
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    compile 'com.squareup.okhttp3:okhttp:4.4.0'
+
+    compile 'com.google.code.gson:gson:2.8.6'
+
+    compile 'org.seleniumhq.selenium:selenium-java:3.141.59'
+
+    compile 'net.coobird:thumbnailator:0.4.11'
+}
+
+test {
+    useJUnitPlatform()
+}
