@@ -185,7 +185,10 @@ public class LazadaPage extends BasePage {
 
     private void setProductHighlight(Lazada lazada) {
         if (mProductHighlightsElement != null && !Strings.isNullOrEmpty(mProductHighlightsElement.getText())) {
-            lazada.setProductHighlight(mProductHighlightsElement.getText());
+            List<String> productHighlightList = new ArrayList<>();
+            String[] textArray = mProductHighlightsElement.getText().split("\n");
+            Collections.addAll(productHighlightList, textArray);
+            lazada.setProductHighlightList(productHighlightList);
         }
     }
 
