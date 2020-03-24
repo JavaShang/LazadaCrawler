@@ -1,6 +1,7 @@
 package com.hj.crawler.page;
 
 import com.google.common.base.Preconditions;
+import lombok.extern.log4j.Log4j2;
 import org.openqa.selenium.By;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.WebDriver;
@@ -10,6 +11,7 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.util.List;
 
+@Log4j2
 public abstract class BasePage extends PageGenerator {
 
     private static final long TIMEOUT = 30;
@@ -29,7 +31,7 @@ public abstract class BasePage extends PageGenerator {
         try {
             return mWebDriver.findElement(by);
         } catch (Exception ex) {
-            ex.printStackTrace();
+            log.error(ex);
             return null;
         }
     }
@@ -38,7 +40,7 @@ public abstract class BasePage extends PageGenerator {
         try {
             return mWebDriver.findElements(by);
         } catch (Exception ex) {
-            ex.printStackTrace();
+            log.error(ex);
             return null;
         }
     }
@@ -52,7 +54,7 @@ public abstract class BasePage extends PageGenerator {
         try {
             return webDriverWait.until(c);
         } catch (Exception ex) {
-            ex.printStackTrace();
+            log.error(ex);
             return null;
         }
     }
@@ -63,7 +65,7 @@ public abstract class BasePage extends PageGenerator {
         try {
             return webDriverWait.until(c);
         } catch (Exception ex) {
-            ex.printStackTrace();
+            log.error(ex);
             return null;
         }
     }

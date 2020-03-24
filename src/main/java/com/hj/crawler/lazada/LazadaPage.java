@@ -6,29 +6,35 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.hj.crawler.lazada.model.Lazada;
 import com.hj.crawler.lazada.model.Sku;
+import com.hj.crawler.network.DownloadInfo;
+import com.hj.crawler.network.INetworkCallbackListener;
+import com.hj.crawler.network.NetworkHelper;
 import com.hj.crawler.page.BasePage;
 import com.hj.crawler.utils.IOUtils;
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.Response;
-import okhttp3.ResponseBody;
-import org.jetbrains.annotations.NotNull;
+import com.hj.crawler.utils.ImageUtils;
+import com.hj.crawler.utils.StringUtils;
+import lombok.extern.log4j.Log4j2;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-
+@Log4j2
 public class LazadaPage extends BasePage {
 
     private static final String RESULT_DIR = System.getProperty("user.dir") + "\\CrawlerResult";
+    private static final String INFO_FILE_NAME = "info.json";
+    private static final String GALLERY_DIR_NAME = "gallery";
+    private static final String DETAIL_DIR_NAME = "detail";
+    private static final String IMAGE_NAME_PREFIX = "img";
+    private static final String COVER_IMAGE_PATH = System.getProperty("user.dir") + "\\cover.png";
 
     private static final int PRICE_INCREMENT = 30000;
     private static final float MIN_MULTIPLE = 1.1F;
@@ -36,6 +42,7 @@ public class LazadaPage extends BasePage {
 
     private Random mRandom;
     private Gson mGson;
+    private List<DownloadInfo> mDownloadInfoList;
 
     WebElement mTitleElement;
     WebElement mPriceElement;
@@ -48,18 +55,18 @@ public class LazadaPage extends BasePage {
 
     public LazadaPage(WebDriver webDriver) {
         super(webDriver);
-    }
-
-    public void fetchDataByUrls(List<String> urlList) {
-        Preconditions.checkNotNull(urlList, "url list should not be null");
-        Preconditions.checkElementIndex(0, urlList.size(), "url list should not be empty,");
-
         mRandom = new Random();
         mGson = new GsonBuilder()
                 .setPrettyPrinting()
                 .disableHtmlEscaping()
                 .create();
 
+        mDownloadInfoList = new ArrayList<>();
+    }
+
+    public void fetchDataByUrls(List<String> urlList) {
+        Preconditions.checkNotNull(urlList, "url list should not be null");
+        Preconditions.checkElementIndex(0, urlList.size(), "url list should not be empty,");
         for (String url : urlList) {
             fetchDataByUrl(url);
         }
@@ -70,6 +77,8 @@ public class LazadaPage extends BasePage {
         Preconditions.checkArgument(!url.isEmpty(), "url should not be empty");
 
         try {
+
+            log.info("start get url :" + url);
             get(url);
 
             Lazada lazada = new Lazada();
@@ -121,10 +130,10 @@ public class LazadaPage extends BasePage {
                 if (galleryElement != null) {
                     String imgUrl = galleryElement.getAttribute("src");
                     if (!Strings.isNullOrEmpty(imgUrl)) {
-                        System.out.println("before: " + imgUrl);
+                        log.info("gallery img url origin: " + imgUrl);
                         imgUrl = imgUrl.split("_")[0];
                         imgUrlList.add(imgUrl);
-                        System.out.println("after: " + imgUrl);
+                        log.info("gallery img url after: " + imgUrl);
                     }
                 }
             }
@@ -191,7 +200,8 @@ public class LazadaPage extends BasePage {
                     if (!textElementList.isEmpty()) {
                         for (WebElement textElement : textElementList) {
                             if (textElement != null && !Strings.isNullOrEmpty(textElement.getText())) {
-                                detailTextList.add(textElement.getText());
+                                String[] textArray = textElement.getText().split("\n");
+                                Collections.addAll(detailTextList, textArray);
                             }
                         }
                     }
@@ -216,14 +226,16 @@ public class LazadaPage extends BasePage {
             List<String> detailContentList = new ArrayList<>();
 
             if (!Strings.isNullOrEmpty(mDetailContentElement.getText())) {
-                detailContentList.add(mDetailContentElement.getText());
+                String[] textArray = mDetailContentElement.getText().split("\n");
+                Collections.addAll(detailContentList, textArray);
             }
 
             List<WebElement> textElementList = mDetailContentElement.findElements(By.tagName("p"));
             if (!textElementList.isEmpty()) {
                 for (WebElement textElement : textElementList) {
                     if (textElement != null && !Strings.isNullOrEmpty(textElement.getText())) {
-                        detailContentList.add(textElement.getText());
+                        String[] textArray = textElement.getText().split("\n");
+                        Collections.addAll(detailContentList, textArray);
                     }
                 }
             }
@@ -302,70 +314,114 @@ public class LazadaPage extends BasePage {
 
         String goodsDir = RESULT_DIR + File.separator + System.currentTimeMillis();
 
-        IOUtils.saveToPath(goodsDir, "info.json", mGson.toJson(lazada).getBytes(StandardCharsets.UTF_8));
+        IOUtils.saveToPath(goodsDir, INFO_FILE_NAME, mGson.toJson(lazada).getBytes(StandardCharsets.UTF_8));
+    }
 
-        List<String> galleryList = lazada.getGalleryList();
-        if (galleryList != null && !galleryList.isEmpty()) {
-            String galleryDir = goodsDir + File.separator + "gallery";
-            for (int i = 0; i < galleryList.size(); i++) {
-                String gallery = galleryList.get(i);
-                if (!Strings.isNullOrEmpty(gallery)) {
-                    try {
-                        int index = i;
-                        IOUtils.download(gallery, new Callback() {
-                            @Override
-                            public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
-                                ResponseBody responseBody = response.body();
-                                if (responseBody != null) {
-                                    String suffix = gallery.substring(gallery.lastIndexOf("."));
-                                    IOUtils.saveToPath(galleryDir, String.format("gallery-%d%s", index, suffix), responseBody.bytes());
-                                }
-                            }
+    public List<String> downloadImage() {
+        File resultDir = new File(RESULT_DIR);
+        try {
+            File[] destDirArray = resultDir.listFiles();
+            if (destDirArray == null || destDirArray.length == 0) {
+                log.info("could not get any dest dir");
+                return null;
+            }
 
-                            @Override
-                            public void onFailure(@NotNull Call call, @NotNull IOException e) {
-                                e.printStackTrace();
-                                System.out.println("fail to download : " + gallery);
-                            }
-                        });
-                    } catch (Exception ex) {
-                        System.out.println("fail to download :" + gallery);
-                        ex.printStackTrace();
+            for (File destDir : destDirArray) {
+                File[] info = destDir.listFiles((file, name) -> INFO_FILE_NAME.equals(name));
+
+                if (info == null || info.length == 0) {
+                    log.info("could not get info.json on " + destDir.getAbsolutePath());
+                    continue;
+                }
+
+                Lazada lazada = mGson.fromJson(IOUtils.readString(info[0].getAbsolutePath()), Lazada.class);
+                if (lazada != null) {
+
+                    if (lazada.getGalleryList() != null && !lazada.getGalleryList().isEmpty()) {
+                        String galleryDir = destDir.getAbsolutePath() + File.separator + GALLERY_DIR_NAME;
+                        for (int i = 0; i < lazada.getGalleryList().size(); i++) {
+                            String galleryUrl = lazada.getGalleryList().get(i);
+                            String suffix = StringUtils.getExtension(galleryUrl, false);
+                            String destFileName = String.format("%s_%s.%s", IMAGE_NAME_PREFIX, i, suffix);
+                            DownloadInfo downloadInfo = new DownloadInfo(galleryUrl, galleryDir, destFileName);
+                            mDownloadInfoList.add(downloadInfo);
+                        }
+                    }
+
+                    if (lazada.getDetailContentImageList() != null && !lazada.getDetailContentImageList().isEmpty()) {
+                        String detailDir = destDir.getAbsolutePath() + File.separator + DETAIL_DIR_NAME;
+                        for (int i = 0; i < lazada.getDetailContentImageList().size(); i++) {
+                            String detailUrl = lazada.getDetailContentImageList().get(i);
+                            String suffix = StringUtils.getExtension(detailUrl, false);
+                            String destFileName = String.format("%s_%s.%s", IMAGE_NAME_PREFIX, i, suffix);
+                            DownloadInfo downloadInfo = new DownloadInfo(detailUrl, detailDir, destFileName);
+                            mDownloadInfoList.add(downloadInfo);
+                        }
                     }
                 }
             }
+
+            List<String> failedList = new ArrayList<>();
+            for (DownloadInfo downloadInfo : mDownloadInfoList) {
+                failedList.add(downloadInfo.getUrl());
+            }
+
+            for (DownloadInfo downloadInfo : mDownloadInfoList) {
+                NetworkHelper.getInstance().downloadExecute(downloadInfo, new INetworkCallbackListener() {
+                    @Override
+                    public void onProgress(int progress) {
+                        log.info("download :" + downloadInfo.getUrl() + ", progress :" + progress);
+                    }
+
+                    @Override
+                    public void onSuccess(String destFilePath) {
+                        log.info("download :" + downloadInfo.getUrl() + ", success :" + downloadInfo.getDestDir());
+                        failedList.remove(downloadInfo.getUrl());
+                    }
+
+                    @Override
+                    public void onFailure(Exception ex) {
+                        log.error("download : " + downloadInfo.getUrl() + ", failed", ex);
+                    }
+                });
+            }
+
+            return failedList;
+        } catch (Exception ex) {
+            log.error(ex);
+            return null;
         }
+    }
 
-        List<String> detailImageList = lazada.getDetailImageList();
-        if (detailImageList != null && !detailImageList.isEmpty()) {
-            String detailImageDir = goodsDir + File.separator + "detail";
-            for (int i = 0; i < detailImageList.size(); i++) {
-                String detailImage = detailImageList.get(i);
-                if (!Strings.isNullOrEmpty(detailImage)) {
-                    try {
-                        int index = i;
-                        IOUtils.download(detailImage, new Callback() {
-                            @Override
-                            public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
-                                ResponseBody responseBody = response.body();
-                                if (responseBody != null) {
-                                    String suffix = detailImage.substring(detailImage.lastIndexOf("."));
-                                    IOUtils.saveToPath(detailImageDir, String.format("detail-%d%s", index, suffix), responseBody.bytes());
-                                }
-                            }
-
-                            @Override
-                            public void onFailure(@NotNull Call call, @NotNull IOException e) {
-                                System.out.println("fail to download : " + detailImage);
-                                e.printStackTrace();
-                            }
-                        });
-                    } catch (Exception ex) {
-                        System.out.println("fail to download :" + detailImage);
-                        ex.printStackTrace();
-                    }
-                }
+    public void makeGalleryCovered() {
+        File resultDir = new File(RESULT_DIR);
+        try {
+            File[] destDirArray = resultDir.listFiles();
+            if (destDirArray == null || destDirArray.length == 0) {
+                log.info("could not get any dest dir");
+                return;
             }
+
+            for (File destDir : destDirArray) {
+                File[] galleryDir = destDir.listFiles((file, name) -> GALLERY_DIR_NAME.equals(name));
+
+                if (galleryDir == null || galleryDir.length == 0) {
+                    log.info("could not get gallery dir on " + destDir.getAbsolutePath());
+                    continue;
+                }
+
+                File[] galleryImageArray = galleryDir[0].listFiles();
+                if (galleryImageArray == null || galleryImageArray.length == 0) {
+                    log.info("cloud not get any image on " + galleryDir[0].getAbsolutePath());
+                    continue;
+                }
+
+                File galleryFile = galleryImageArray[0];
+
+                ImageUtils.addCover(galleryFile.getAbsolutePath(), COVER_IMAGE_PATH);
+            }
+        } catch (Exception ex) {
+            log.error(ex);
         }
     }
 }

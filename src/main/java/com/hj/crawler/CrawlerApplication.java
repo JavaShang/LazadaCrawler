@@ -5,11 +5,13 @@ import com.hj.crawler.lazada.LazadaPage;
 import com.hj.crawler.lazada.LazadaWebDriver;
 import com.hj.crawler.page.PageGenerator;
 import com.hj.crawler.utils.IOUtils;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 import java.util.List;
 
+@Log4j2
 @SpringBootApplication
 public class CrawlerApplication {
 
@@ -30,5 +32,13 @@ public class CrawlerApplication {
         lazadaPage.fetchDataByUrls(urlList);
         lazadaPage.close();
         lazadaPage.quit();
+
+        List<String> failedList = lazadaPage.downloadImage();
+        if (failedList != null) {
+            for (String failedUrl : failedList) {
+                log.error(failedUrl);
+            }
+        }
+        lazadaPage.makeGalleryCovered();
     }
 }

@@ -1,8 +1,10 @@
 package com.hj.crawler.page;
 
+import lombok.extern.log4j.Log4j2;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.support.PageFactory;
 
+@Log4j2
 public class PageGenerator {
 
     public WebDriver mWebDriver;
@@ -15,7 +17,7 @@ public class PageGenerator {
         try {
             return PageFactory.initElements(mWebDriver, pageClass);
         } catch (Exception ex) {
-            ex.printStackTrace();
+            log.error(ex);
             return null;
         }
     }

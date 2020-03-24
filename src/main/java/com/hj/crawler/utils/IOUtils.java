@@ -1,49 +1,33 @@
 package com.hj.crawler.utils;
 
-import okhttp3.Callback;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
+import lombok.extern.log4j.Log4j2;
 
-import javax.net.ssl.*;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
+@Log4j2
 public class IOUtils {
 
     public static List<String> readLines(String path) {
         try {
             return Files.readAllLines(Paths.get(path), StandardCharsets.UTF_8);
         } catch (IOException ex) {
-            ex.printStackTrace();
+            log.error(ex);
             return null;
         }
     }
 
-    public static void download(final String url, Callback callback) {
-        Request request = new Request.Builder()
-                .url(url)
-                .build();
-
-        OkHttpClient okHttpClient = new OkHttpClient.Builder()
-                .connectTimeout(10, TimeUnit.SECONDS)
-                .readTimeout(10, TimeUnit.SECONDS)
-                .writeTimeout(10, TimeUnit.SECONDS)
-                .sslSocketFactory(getSSLSocketFactory(), getTrustManager())
-                .hostnameVerifier(getHostnameVerifier())
-                .retryOnConnectionFailure(true)
-                .build();
-
+    public static String readString(String path) {
         try {
-            okHttpClient.newCall(request).enqueue(callback);
-        } catch (Exception ex) {
-            ex.printStackTrace();
+            byte[] bytes = Files.readAllBytes(Paths.get(path));
+            return new String(bytes, StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            log.error(ex);
+            return null;
         }
     }
 
@@ -63,39 +47,8 @@ public class IOUtils {
 
             return true;
         } catch (Exception ex) {
-            ex.printStackTrace();
+            log.error(ex);
             return false;
         }
-    }
-
-    public static SSLSocketFactory getSSLSocketFactory() {
-        try {
-            SSLContext sslContext = SSLContext.getInstance("SSL");
-            sslContext.init(null, new TrustManager[]{getTrustManager()}, new SecureRandom());
-            return sslContext.getSocketFactory();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static X509TrustManager getTrustManager() {
-        return new X509TrustManager() {
-            @Override
-            public void checkClientTrusted(X509Certificate[] chain, String authType) {
-            }
-
-            @Override
-            public void checkServerTrusted(X509Certificate[] chain, String authType) {
-            }
-
-            @Override
-            public X509Certificate[] getAcceptedIssuers() {
-                return new X509Certificate[]{};
-            }
-        };
-    }
-
-    public static HostnameVerifier getHostnameVerifier() {
-        return (s, sslSession) -> true;
     }
 }
