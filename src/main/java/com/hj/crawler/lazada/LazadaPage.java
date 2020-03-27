@@ -378,6 +378,7 @@ public class LazadaPage extends BasePage {
                     Lazada2Shopee.Variation variation = new Lazada2Shopee.Variation();
                     variation.setVariationSku(sku.getSku());
                     variation.setPrice(sku.getPrice());
+                    variation.setStock(100);
                     variations.add(variation);
                 }
             }
@@ -398,7 +399,7 @@ public class LazadaPage extends BasePage {
 
             Lazada2Shopee.Logistic logistic = new Lazada2Shopee.Logistic();
             logistic.setLogisticId(0);
-            logistic.setEnable(true);
+            logistic.setEnabled(true);
             logisticList.add(logistic);
 
             Lazada2Shopee.Attribute attribute = new Lazada2Shopee.Attribute();
