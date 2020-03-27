@@ -7,6 +7,7 @@ import java.util.List;
 @Data
 public class Lazada {
 
+    private String itemId;
     private String originUrl;
     private String title;
     private List<String> galleryList;

@@ -3,6 +3,8 @@ package com.hj.crawler.utils;
 import lombok.extern.log4j.Log4j2;
 
 import java.io.File;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Log4j2
 public class StringUtils {
@@ -27,5 +29,21 @@ public class StringUtils {
             log.error(ex);
             return null;
         }
+    }
+
+    public static String getLazadaItemId(String url) {
+        try {
+            url = url.split("\\?")[0];
+            String regex = "-i\\d+-";
+            Pattern pattern = Pattern.compile(regex);
+            Matcher matcher = pattern.matcher(url);
+            if (matcher.find()) {
+                return matcher.group(0).replaceAll("-", "")
+                        .replace("i", "");
+            }
+        } catch (Exception ex) {
+            log.error(ex);
+        }
+        return String.valueOf(System.currentTimeMillis());
     }
 }

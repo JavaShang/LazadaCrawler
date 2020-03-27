@@ -6,6 +6,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.hj.crawler.lazada.model.Lazada;
 import com.hj.crawler.lazada.model.Sku;
+import com.hj.crawler.model.Lazada2Shopee;
 import com.hj.crawler.network.DownloadInfo;
 import com.hj.crawler.network.INetworkCallbackListener;
 import com.hj.crawler.network.NetworkHelper;
@@ -29,10 +30,10 @@ import java.util.concurrent.TimeUnit;
 @Log4j2
 public class LazadaPage extends BasePage {
 
-    private static final String RESULT_DIR = System.getProperty("user.dir") + "\\CrawlerResult";
+    private static final String RESULT_DIR = System.getProperty("user.dir") + "\\CrawlerResult\\Lazada";
     private static final String INFO_FILE_NAME = "info.json";
-    private static final String GALLERY_DIR_NAME = "gallery";
-    private static final String DETAIL_DIR_NAME = "detail";
+    private static final String SHOPEE_INFO_FILE_NAME = "info_shopee.json";
+    private static final String IMAGE_DIR_NAME = "img";
     private static final String IMAGE_NAME_PREFIX = "img";
     private static final String COVER_IMAGE_PATH = System.getProperty("user.dir") + "\\cover.png";
 
@@ -73,8 +74,9 @@ public class LazadaPage extends BasePage {
     }
 
     private void fetchDataByUrl(String url) {
-        Preconditions.checkNotNull(url, "url should not be null");
-        Preconditions.checkArgument(!url.isEmpty(), "url should not be empty");
+        if (Strings.isNullOrEmpty(url)) {
+            return;
+        }
 
         try {
 
@@ -82,6 +84,7 @@ public class LazadaPage extends BasePage {
             get(url);
 
             Lazada lazada = new Lazada();
+            lazada.setItemId(StringUtils.getLazadaItemId(url));
             lazada.setOriginUrl(url);
 
             Thread.sleep(TimeUnit.SECONDS.toMillis(30));
@@ -108,7 +111,10 @@ public class LazadaPage extends BasePage {
             mDetailContentElement = get(By.className("detail-content"));
             setDetailContent(lazada);
 
-            saveLazada(lazada);
+            String goodsDir = RESULT_DIR + File.separator + lazada.getItemId();
+
+            saveLazada(goodsDir, lazada);
+            saveLazada2Shopee(goodsDir, lazada);
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -259,7 +265,7 @@ public class LazadaPage extends BasePage {
         }
     }
 
-    private void saveLazada(Lazada lazada) {
+    private void saveLazada(String goodsDir, Lazada lazada) {
 
         String title = lazada.getTitle();
 
@@ -305,19 +311,108 @@ public class LazadaPage extends BasePage {
             }
         }
 
-        List<String> detailTextList = lazada.getDetailTextList();
-        if (detailTextList == null) {
-            detailTextList = new ArrayList<>();
+        List<String> productHighlightList = lazada.getProductHighlightList();
+        if (productHighlightList == null) {
+            productHighlightList = new ArrayList<>();
         }
 
-        detailTextList.add(0, "Yang mau murunkan berat badan dengan cara efektif dan aman, " +
+        productHighlightList.add(0, "Yang mau murunkan berat badan dengan cara efektif dan aman, " +
                 "bisa search di shopee dengan kata kunci \"bosslim\".");
 
-        lazada.setDetailTextList(detailTextList);
+        lazada.setProductHighlightList(productHighlightList);
 
-        String goodsDir = RESULT_DIR + File.separator + System.currentTimeMillis();
 
         IOUtils.saveToPath(goodsDir, INFO_FILE_NAME, mGson.toJson(lazada).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void saveLazada2Shopee(String goodsDir, Lazada lazada) {
+        Lazada2Shopee lazada2Shopee = new Lazada2Shopee();
+        lazada2Shopee.setItemId(lazada.getItemId());
+        lazada2Shopee.setName(lazada.getTitle());
+        StringBuilder descriptionSb = new StringBuilder();
+        List<String> productHighlightList = lazada.getProductHighlightList();
+        List<String> detailTextList = lazada.getDetailTextList();
+        List<String> detailContentList = lazada.getDetailContentList();
+
+        if (productHighlightList != null && !productHighlightList.isEmpty()) {
+            for (String productHighlight : productHighlightList) {
+                if (!Strings.isNullOrEmpty(productHighlight)) {
+                    descriptionSb.append(productHighlight)
+                            .append("\n");
+                }
+            }
+        }
+
+        if (detailTextList != null && !detailTextList.isEmpty()) {
+            for (String detailText : detailTextList) {
+                if (!Strings.isNullOrEmpty(detailText)) {
+                    descriptionSb.append(detailText)
+                            .append("\n");
+                }
+            }
+        }
+
+        if (detailContentList != null && !detailContentList.isEmpty()) {
+            for (String detailContent : detailContentList) {
+                if (!Strings.isNullOrEmpty(detailContent)) {
+                    descriptionSb.append(detailContent)
+                            .append("\n");
+                }
+            }
+        }
+
+        if (descriptionSb.length() > 0) {
+            descriptionSb.deleteCharAt(descriptionSb.lastIndexOf("\n"));
+        }
+
+        lazada2Shopee.setDescription(descriptionSb.toString());
+        lazada2Shopee.setPrice(lazada.getPrice());
+        lazada2Shopee.setStock(100);
+        lazada2Shopee.setItemSku("");
+
+        List<Lazada2Shopee.Variation> variations = new ArrayList<>();
+        List<Sku> skuList = lazada.getSkuList();
+        if (skuList != null && !skuList.isEmpty()) {
+            for (Sku sku : skuList) {
+                if (sku != null) {
+                    Lazada2Shopee.Variation variation = new Lazada2Shopee.Variation();
+                    variation.setVariationSku(sku.getSku());
+                    variation.setPrice(sku.getPrice());
+                    variations.add(variation);
+                }
+            }
+        }
+
+        if (!variations.isEmpty()) {
+            lazada2Shopee.setVariations(variations);
+        }
+
+        List<Lazada2Shopee.Image> imageList = new ArrayList<>();
+        List<Lazada2Shopee.Logistic> logisticList = new ArrayList<>();
+        List<Lazada2Shopee.Attribute> attributeList = new ArrayList<>();
+
+        for (int i = 0; i < 2; i++) {
+            Lazada2Shopee.Image image = new Lazada2Shopee.Image();
+            image.setUrl(IMAGE_NAME_PREFIX);
+            imageList.add(image);
+
+            Lazada2Shopee.Logistic logistic = new Lazada2Shopee.Logistic();
+            logistic.setLogisticId(0);
+            logistic.setEnable(true);
+            logisticList.add(logistic);
+
+            Lazada2Shopee.Attribute attribute = new Lazada2Shopee.Attribute();
+            attribute.setAttributesId(0);
+            attribute.setValue("please set value from shopee_category_attributes.options");
+            attributeList.add(attribute);
+        }
+
+        lazada2Shopee.setImages(imageList);
+        lazada2Shopee.setLogistics(logisticList);
+        lazada2Shopee.setAttributes(attributeList);
+        lazada2Shopee.setStatus("NORMAL");
+
+        IOUtils.saveToPath(goodsDir, SHOPEE_INFO_FILE_NAME, mGson.toJson(lazada2Shopee).getBytes(StandardCharsets.UTF_8));
     }
 
     public List<String> downloadImage() {
@@ -340,24 +435,31 @@ public class LazadaPage extends BasePage {
                 Lazada lazada = mGson.fromJson(IOUtils.readString(info[0].getAbsolutePath()), Lazada.class);
                 if (lazada != null) {
 
+                    List<String> imgUrlList = new ArrayList<>();
+
                     if (lazada.getGalleryList() != null && !lazada.getGalleryList().isEmpty()) {
-                        String galleryDir = destDir.getAbsolutePath() + File.separator + GALLERY_DIR_NAME;
-                        for (int i = 0; i < lazada.getGalleryList().size(); i++) {
-                            String galleryUrl = lazada.getGalleryList().get(i);
-                            String suffix = StringUtils.getExtension(galleryUrl, false);
-                            String destFileName = String.format("%s_%s.%s", IMAGE_NAME_PREFIX, i, suffix);
-                            DownloadInfo downloadInfo = new DownloadInfo(galleryUrl, galleryDir, destFileName);
-                            mDownloadInfoList.add(downloadInfo);
+                        for (String gallery : lazada.getGalleryList()) {
+                            if (!Strings.isNullOrEmpty(gallery)) {
+                                imgUrlList.add(gallery);
+                            }
                         }
                     }
 
                     if (lazada.getDetailContentImageList() != null && !lazada.getDetailContentImageList().isEmpty()) {
-                        String detailDir = destDir.getAbsolutePath() + File.separator + DETAIL_DIR_NAME;
-                        for (int i = 0; i < lazada.getDetailContentImageList().size(); i++) {
-                            String detailUrl = lazada.getDetailContentImageList().get(i);
-                            String suffix = StringUtils.getExtension(detailUrl, false);
+                        for (String detail : lazada.getDetailContentImageList()) {
+                            if (!Strings.isNullOrEmpty(detail)) {
+                                imgUrlList.add(detail);
+                            }
+                        }
+                    }
+
+                    if (!imgUrlList.isEmpty()) {
+                        String detailDir = destDir.getAbsolutePath() + File.separator + IMAGE_DIR_NAME;
+                        for (int i = 0; i < imgUrlList.size(); i++) {
+                            String imgUrl = imgUrlList.get(i);
+                            String suffix = StringUtils.getExtension(imgUrl, false);
                             String destFileName = String.format("%s_%s.%s", IMAGE_NAME_PREFIX, i, suffix);
-                            DownloadInfo downloadInfo = new DownloadInfo(detailUrl, detailDir, destFileName);
+                            DownloadInfo downloadInfo = new DownloadInfo(imgUrl, detailDir, destFileName);
                             mDownloadInfoList.add(downloadInfo);
                         }
                     }
@@ -406,7 +508,7 @@ public class LazadaPage extends BasePage {
             }
 
             for (File destDir : destDirArray) {
-                File[] galleryDir = destDir.listFiles((file, name) -> GALLERY_DIR_NAME.equals(name));
+                File[] galleryDir = destDir.listFiles((file, name) -> IMAGE_DIR_NAME.equals(name));
 
                 if (galleryDir == null || galleryDir.length == 0) {
                     log.info("could not get gallery dir on " + destDir.getAbsolutePath());
