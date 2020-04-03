@@ -2,8 +2,11 @@ package com.hj.crawler.utils;
 
 import lombok.extern.log4j.Log4j2;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -48,6 +51,22 @@ public class IOUtils {
             return true;
         } catch (Exception ex) {
             log.error(ex);
+            return false;
+        }
+    }
+
+    public static boolean downloadImage(String savePath, String url) {
+        try {
+            BufferedImage bi = ImageIO.read(new URL(url));
+            String ext = StringUtils.getExtensionFromUrl(url, false);
+            File dir = new File(savePath);
+            if ((!dir.exists() || !dir.isDirectory()) && !dir.mkdirs()) {
+                return false;
+            }
+            String path = savePath + File.separator + StringUtils.getNameFromUrl(url, true);
+            return ImageIO.write(bi, ext == null ? "jpg" : ext, new File(path));
+        } catch (Exception ex) {
+            ex.printStackTrace();
             return false;
         }
     }
