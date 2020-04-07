@@ -265,6 +265,7 @@ public class LazadaPage extends BasePage {
         IOUtils.saveToPath(resultDir, INFO_FILE_NAME, mGson.toJson(lazada).getBytes(StandardCharsets.UTF_8));
 
         ProductInfo productInfo = new ProductInfo();
+        productInfo.setPlatform("Lazada");
         productInfo.setUrl(lazada.getOriginUrl());
         productInfo.setName(lazada.getTitle());
 
